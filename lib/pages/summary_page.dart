@@ -16,7 +16,7 @@ import 'package:http/http.dart' as http;
 // 它会根据平台自动选择加载哪个文件。
 import 'pdf_viewer_stub.dart'
     if (dart.library.io) 'pdf_viewer_native.dart'
-    if (dart.library.html) 'pdf_viewer_web.dart';
+    if (dart.library.html) 'pdf_viewer_web.dart' as pdf_viewer;
 
 class SummaryPage extends StatefulWidget {
   final Uint8List pdfBytes;
@@ -53,7 +53,15 @@ class _SummaryPageState extends State<SummaryPage> {
     // 检查PDF是否发生变化
     if (oldWidget.pdfBytes != widget.pdfBytes || oldWidget.pdfName != widget.pdfName) {
       print('PDF changed, updating viewer...');
+      print('Old PDF: ${oldWidget.pdfName}, New PDF: ${widget.pdfName}');
+      print('Old PDF size: ${oldWidget.pdfBytes.length}, New PDF size: ${widget.pdfBytes.length}');
+      
+      // 先清理旧的视图（如果有清理函数的话）
+      _cleanupPdfViewer();
+      
+      // 重新初始化PDF查看器
       _initializePdfViewer();
+      
       // 重置状态
       setState(() {
         synopsis = '';
@@ -64,17 +72,39 @@ class _SummaryPageState extends State<SummaryPage> {
         comments = '';
         _isLoading = true;
       });
+      
       // 重新解析新的PDF
       _uploadAndParsePDF();
     }
   }
 
   void _initializePdfViewer() {
-    _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}-${widget.pdfName.hashCode}';
-    registerPlatformView(_viewId, widget.pdfBytes);
+    // 生成更加唯一的ID
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = (widget.pdfBytes.length * widget.pdfName.hashCode).abs();
+    _viewId = 'pdf-viewer-$timestamp-$random';
+    print('Initializing PDF viewer with ID: $_viewId');
+    pdf_viewer.registerPlatformView(_viewId, widget.pdfBytes);
   }
 
-  String _getBaseUrl() {
+  void _cleanupPdfViewer() {
+    // 如果有清理函数，在这里调用
+    // 这取决于你的 pdf_viewer_*.dart 文件是否提供清理函数
+    try {
+      // 调用清理函数
+      if (kIsWeb) {
+        pdf_viewer.unregisterPlatformView(_viewId);
+      }
+    } catch (e) {
+      print('Warning: Could not cleanup PDF viewer: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanupPdfViewer();
+    super.dispose();
+  }
     return 'https://grant-extractor-api.onrender.com'; // 确保这是唯一返回值（临时测试用）
   }
 
@@ -184,9 +214,26 @@ class _SummaryPageState extends State<SummaryPage> {
                 Expanded(
                   flex: 3,
                   child: Container(
-                    // 使用Key强制Widget重建
-                    key: ValueKey(_viewId),
-                    child: buildPdfViewer(_viewId, widget.pdfBytes),
+                    // 使用组合Key强制Widget完全重建
+                    key: ValueKey('${_viewId}-${widget.pdfBytes.hashCode}'),
+                    child: Column(
+                      children: [
+                        // 添加一个头部显示当前PDF信息
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          color: Colors.blue[50],
+                          child: Text(
+                            'Current PDF: ${widget.pdfName}',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          child: pdf_viewer.buildPdfViewer(_viewId, widget.pdfBytes),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 Expanded(
