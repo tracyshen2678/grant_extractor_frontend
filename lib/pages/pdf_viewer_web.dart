@@ -1,166 +1,163 @@
 import 'dart:typed_data';
 import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
-// 存储当前显示的PDF数据，用于比较
-Uint8List? _currentPdfBytes;
-String? _currentViewId;
-html.IFrameElement? _currentIframe;
-
-// 直接创建并管理iframe，不使用platformViewRegistry
-Widget buildPdfViewer(String viewId, Uint8List pdfBytes) {
-  print('Building PDF viewer with viewId: $viewId');
-  print('PDF bytes length: ${pdfBytes.length}');
-  
-  // 检查是否是相同的PDF
-  if (_currentPdfBytes != null && 
-      _currentPdfBytes!.length == pdfBytes.length &&
-      _currentViewId == viewId) {
-    bool isSame = true;
-    for (int i = 0; i < pdfBytes.length; i++) {
-      if (_currentPdfBytes![i] != pdfBytes[i]) {
-        isSame = false;
-        break;
-      }
-    }
-    if (isSame) {
-      print('Same PDF detected, reusing existing viewer');
-      return _buildExistingViewer();
-    }
-  }
-  
-  print('New PDF detected, creating new viewer');
-  return _buildNewViewer(viewId, pdfBytes);
-}
-
-Widget _buildNewViewer(String viewId, Uint8List pdfBytes) {
-  // 清理旧的iframe
-  _cleanup();
-  
-  // 创建新的唯一viewType
-  final uniqueViewType = 'pdf-viewer-${DateTime.now().microsecondsSinceEpoch}';
-  
-  try {
-    ui_web.platformViewRegistry.registerViewFactory(uniqueViewType, (int factoryViewId) {
-      // 清理旧的iframe（如果存在）
-      _cleanup();
-      
-      final blob = html.Blob([pdfBytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      
-      _currentIframe = html.IFrameElement()
-        ..src = url
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..style.border = 'none'
-        ..style.display = 'block';
-      
-      print('Created new iframe with URL: $url');
-      
-      // 添加加载事件监听
-      _currentIframe!.onLoad.listen((_) {
-        print('PDF loaded successfully in iframe');
-      });
-      
-      // 添加错误事件监听
-      _currentIframe!.onError.listen((_) {
-        print('Error loading PDF in iframe');
-      });
-      
-      return _currentIframe!;
-    });
-    
-    // 更新当前状态
-    _currentPdfBytes = Uint8List.fromList(pdfBytes);
-    _currentViewId = viewId;
-    
-    print('Successfully registered new viewer with type: $uniqueViewType');
-    
-    return HtmlElementView(
-      viewType: uniqueViewType,
-      key: ValueKey(uniqueViewType),
-    );
-  } catch (e) {
-    print('Error creating PDF viewer: $e');
-    return Container(
-      color: Colors.grey[200],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Error loading PDF: $e'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // 强制重新创建
-                _cleanup();
-                _currentPdfBytes = null;
-                _currentViewId = null;
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-Widget _buildExistingViewer() {
-  if (_currentIframe != null) {
-    // 即使是相同的PDF，我们也重新创建URL以确保刷新
-    final blob = html.Blob([_currentPdfBytes!], 'application/pdf');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    _currentIframe!.src = url;
-    print('Refreshed existing iframe with new URL: $url');
-  }
-  
-  final uniqueViewType = 'pdf-viewer-${DateTime.now().microsecondsSinceEpoch}';
-  
-  ui_web.platformViewRegistry.registerViewFactory(uniqueViewType, (int factoryViewId) {
-    return _currentIframe ?? html.DivElement()..text = 'No PDF loaded';
-  });
-  
-  return HtmlElementView(
-    viewType: uniqueViewType,
-    key: ValueKey(uniqueViewType),
-  );
-}
-
-void _cleanup() {
-  if (_currentIframe != null) {
-    try {
-      // 清理iframe的URL
-      final currentSrc = _currentIframe!.src;
-      if (currentSrc != null && currentSrc.startsWith('blob:')) {
-        html.Url.revokeObjectUrl(currentSrc);
-        print('Cleaned up blob URL: $currentSrc');
-      }
-      
-      // 移除iframe
-      _currentIframe!.remove();
-      _currentIframe = null;
-      print('Cleaned up iframe');
-    } catch (e) {
-      print('Error during cleanup: $e');
-    }
-  }
-}
-
-// 这些函数保持为空以保持API兼容性
+// 简化的实现：不使用platformViewRegistry，直接显示PDF信息和下载链接
 void registerPlatformView(String viewId, Uint8List pdfBytes) {
-  // Web平台现在在buildPdfViewer中直接处理注册
+  // 空实现
 }
 
 void unregisterPlatformView(String viewId) {
-  _cleanup();
+  // 空实现
 }
 
 void cleanupAllPdfViewers() {
-  _cleanup();
-  _currentPdfBytes = null;
-  _currentViewId = null;
+  // 空实现
+}
+
+Widget buildPdfViewer(String viewId, Uint8List pdfBytes) {
+  print('=== Building Simple PDF Viewer ===');
+  print('ViewId: $viewId');
+  print('PDF size: ${pdfBytes.length} bytes');
+  
+  return Container(
+    key: ValueKey('simple-pdf-${pdfBytes.hashCode}'),
+    color: Colors.grey[100],
+    child: Column(
+      children: [
+        // PDF信息头部
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: Colors.blue[50],
+          child: Column(
+            children: [
+              const Icon(Icons.picture_as_pdf, size: 48, color: Colors.red),
+              const SizedBox(height: 8),
+              Text(
+                'PDF Document',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Size: ${_formatBytes(pdfBytes.length)}',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        
+        // 操作按钮
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'PDF Viewer',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'The PDF has been processed for analysis.',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                
+                ElevatedButton.icon(
+                  onPressed: () => _downloadPdf(pdfBytes, viewId),
+                  icon: const Icon(Icons.download),
+                  label: const Text('Download PDF'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                ElevatedButton.icon(
+                  onPressed: () => _openPdfInNewTab(pdfBytes),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open in New Tab'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
+                ),
+                
+                const SizedBox(height: 32),
+                
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green[600]),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'PDF uploaded and ready for analysis',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+void _downloadPdf(Uint8List pdfBytes, String fileName) {
+  try {
+    final blob = html.Blob([pdfBytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    final anchor = html.AnchorElement()
+      ..href = url
+      ..download = fileName.endsWith('.pdf') ? fileName : '$fileName.pdf'
+      ..style.display = 'none';
+    
+    html.document.body?.append(anchor);
+    anchor.click();
+    anchor.remove();
+    
+    html.Url.revokeObjectUrl(url);
+    
+    print('PDF download initiated');
+  } catch (e) {
+    print('Error downloading PDF: $e');
+  }
+}
+
+void _openPdfInNewTab(Uint8List pdfBytes) {
+  try {
+    final blob = html.Blob([pdfBytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    html.window.open(url, '_blank');
+    
+    // 延迟清理URL
+    Future.delayed(const Duration(seconds: 5), () {
+      html.Url.revokeObjectUrl(url);
+    });
+    
+    print('PDF opened in new tab');
+  } catch (e) {
+    print('Error opening PDF: $e');
+  }
+}
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
