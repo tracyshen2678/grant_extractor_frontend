@@ -399,7 +399,7 @@ class _SummaryPageState extends State<SummaryPage> {
             TextButton(
               onPressed: _clearHistory,
               child: const Text(
-                "Clear History",
+                "Clearr History",
                 style: TextStyle(color: Colors.red),
               ),
             ),
@@ -674,7 +674,7 @@ class _SummaryPageState extends State<SummaryPage> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          Text('⭐ ${item['stars']} Sccore: ${item['score']}'),
+                          Text('⭐ ${item['stars']} Score: ${item['score']}'),
                           if (item['comments'] != null &&
                               item['comments'].isNotEmpty)
                             Text('Comments: ${item['comments']}'),
