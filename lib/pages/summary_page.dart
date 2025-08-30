@@ -674,7 +674,7 @@ class _SummaryPageState extends State<SummaryPage> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          Text('⭐ ${item['stars']} Score: ${item['score']}'),
+                          Text('⭐ ${item['stars']} Sccore: ${item['score']}'),
                           if (item['comments'] != null &&
                               item['comments'].isNotEmpty)
                             Text('Comments: ${item['comments']}'),
