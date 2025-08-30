@@ -13,6 +13,7 @@ void cleanupAllPdfViewers() {}
 
 // 在原生平台，我们使用 SfPdfViewer.memory。
 Widget buildPdfViewer(String viewId, Uint8List pdfBytes) {
+  print('Building native PDF viewer with viewId: $viewId');
   // 使用Key确保每次都创建新的实例
   return SfPdfViewer.memory(
     pdfBytes,
