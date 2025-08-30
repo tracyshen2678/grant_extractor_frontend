@@ -12,6 +12,9 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
+// 导入LandingPage以便返回
+import 'landing_page.dart';
+
 // 这是最关键的条件导入！
 // 它会根据平台自动选择加载哪个文件。
 import 'pdf_viewer_stub.dart'
@@ -184,6 +187,18 @@ class _SummaryPageState extends State<SummaryPage> {
       appBar: AppBar(
         automaticallyImplyLeading: true,
         title: Text("Application Summary - ${widget.pdfName}"), // 显示当前PDF名称
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LandingPage()),
+              );
+            },
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Upload New PDF',
+          ),
+        ],
       ),
       body: Row(
         children: [
@@ -214,8 +229,8 @@ class _SummaryPageState extends State<SummaryPage> {
                 Expanded(
                   flex: 3,
                   child: Container(
-                    // 使用组合Key强制Widget完全重建
-                    key: ValueKey('${_viewId}-${widget.pdfBytes.hashCode}'),
+                    // 使用PDF名称和时间戳的组合Key
+                    key: ValueKey('pdf-container-${widget.pdfName}-${widget.pdfBytes.hashCode}'),
                     child: Column(
                       children: [
                         // 添加一个头部显示当前PDF信息
@@ -224,7 +239,7 @@ class _SummaryPageState extends State<SummaryPage> {
                           padding: const EdgeInsets.all(8),
                           color: Colors.blue[50],
                           child: Text(
-                            'Current PDF: ${widget.pdfName}',
+                            'Current PDF: ${widget.pdfName} (${widget.pdfBytes.length} bytes)',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                             textAlign: TextAlign.center,
                           ),
