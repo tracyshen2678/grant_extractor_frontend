@@ -38,15 +38,24 @@ class _SummaryPageState extends State<SummaryPage> {
   bool _isLoading = true;
   int selectedIndex = 0;
 
-  final String _viewId = 'pdf-viewer-iframe';
+  late String _viewId;
 
   @override
   void initState() {
     super.initState();
-    // 调用来自条件导入的函数。
-    // 在 Web 平台，它会执行注册；在原生平台，它是一个空函数。
+    _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
     registerPlatformView(_viewId, widget.pdfBytes);
     _uploadAndParsePDF();
+  }
+
+  @override
+  void didUpdateWidget(covariant SummaryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pdfBytes != widget.pdfBytes) {
+      _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
+      registerPlatformView(_viewId, widget.pdfBytes);
+      setState(() {});
+    }
   }
 
   String _getBaseUrl() {
