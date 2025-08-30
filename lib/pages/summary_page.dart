@@ -12,14 +12,11 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
-// 导入LandingPage以便返回
-import 'landing_page.dart';
-
-// 这是最关键的条件导入！
+// 这是最关键的条件导入：
 // 它会根据平台自动选择加载哪个文件。
 import 'pdf_viewer_stub.dart'
     if (dart.library.io) 'pdf_viewer_native.dart'
-    if (dart.library.html) 'pdf_viewer_web.dart' as pdf_viewer;
+    if (dart.library.html) 'pdf_viewer_web.dart';
 
 class SummaryPage extends StatefulWidget {
   final Uint8List pdfBytes;
@@ -41,73 +38,39 @@ class _SummaryPageState extends State<SummaryPage> {
   bool _isLoading = true;
   int selectedIndex = 0;
 
+  // 修改：使用基于时间戳的唯一ID
   late String _viewId;
 
   @override
   void initState() {
     super.initState();
-    _initializePdfViewer();
+    // 生成唯一的viewId
+    _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
+    // 调用来自条件导入的函数。
+    // 在 Web 平台，它会执行注册；在原生平台，它是一个空函数。
+    registerPlatformView(_viewId, widget.pdfBytes);
     _uploadAndParsePDF();
   }
 
   @override
-  void didUpdateWidget(covariant SummaryPage oldWidget) {
+  void didUpdateWidget(SummaryPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 检查PDF是否发生变化
-    if (oldWidget.pdfBytes != widget.pdfBytes || oldWidget.pdfName != widget.pdfName) {
-      print('PDF changed, updating viewer...');
-      print('Old PDF: ${oldWidget.pdfName}, New PDF: ${widget.pdfName}');
-      print('Old PDF size: ${oldWidget.pdfBytes.length}, New PDF size: ${widget.pdfBytes.length}');
-      
-      // 先清理旧的视图（如果有清理函数的话）
-      _cleanupPdfViewer();
-      
-      // 重新初始化PDF查看器
-      _initializePdfViewer();
-      
-      // 重置状态
+    // 修改：当PDF数据变化时，重新注册视图
+    if (oldWidget.pdfBytes != widget.pdfBytes) {
+      _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
+      registerPlatformView(_viewId, widget.pdfBytes);
+      // 重新加载PDF数据
       setState(() {
+        _isLoading = true;
         synopsis = '';
         keywords = [];
         extractedData = {};
-        score = 50;
-        stars = 3;
-        comments = '';
-        _isLoading = true;
       });
-      
-      // 重新解析新的PDF
       _uploadAndParsePDF();
     }
   }
 
-  void _initializePdfViewer() {
-    // 生成更加唯一的ID
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = (widget.pdfBytes.length * widget.pdfName.hashCode).abs();
-    _viewId = 'pdf-viewer-$timestamp-$random';
-    print('Initializing PDF viewer with ID: $_viewId');
-    pdf_viewer.registerPlatformView(_viewId, widget.pdfBytes);
-  }
-
-  void _cleanupPdfViewer() {
-    // 如果有清理函数，在这里调用
-    // 这取决于你的 pdf_viewer_*.dart 文件是否提供清理函数
-    try {
-      // 调用清理函数
-      if (kIsWeb) {
-        pdf_viewer.unregisterPlatformView(_viewId);
-      }
-    } catch (e) {
-      print('Warning: Could not cleanup PDF viewer: $e');
-    }
-  }
-
-  @override
-  void dispose() {
-    _cleanupPdfViewer();
-    super.dispose();
-  }
+  String _getBaseUrl() {
     return 'https://grant-extractor-api.onrender.com'; // 确保这是唯一返回值（临时测试用）
   }
 
@@ -137,10 +100,10 @@ class _SummaryPageState extends State<SummaryPage> {
       final fullUrl = '$baseUrl/api/v1/extract/';
       final request = http.MultipartRequest('POST', Uri.parse(fullUrl));
 
-      // 2. 添加Authorization Header
+      // 2. 添加 Authorization Header
       request.headers['Authorization'] = 'Bearer $token';
 
-      // 3. 添加PDF文件
+      // 3. 添加 PDF文件
       request.files.add(
         http.MultipartFile.fromBytes(
           'file',
@@ -157,13 +120,11 @@ class _SummaryPageState extends State<SummaryPage> {
       if (response.statusCode == 200) {
         final resBody = await response.stream.bytesToString();
         final jsonData = jsonDecode(resBody);
-        if (mounted) {
-          setState(() {
-            synopsis = jsonData['synopsis'] ?? '';
-            keywords = List<String>.from(jsonData['keywords'] ?? []);
-            extractedData = jsonData['extracted_data'] ?? {};
-          });
-        }
+        setState(() {
+          synopsis = jsonData['synopsis'] ?? '';
+          keywords = List<String>.from(jsonData['keywords'] ?? []);
+          extractedData = jsonData['extracted_data'] ?? {};
+        });
       } else {
         final errorBody = await response.stream.bytesToString();
         _showError('解析失败: ${response.statusCode}\n$errorBody');
@@ -186,19 +147,7 @@ class _SummaryPageState extends State<SummaryPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
-        title: Text("Application Summary - ${widget.pdfName}"), // 显示当前PDF名称
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LandingPage()),
-              );
-            },
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Upload New PDF',
-          ),
-        ],
+        title: const Text("Application Summary Preview"),
       ),
       body: Row(
         children: [
@@ -229,26 +178,8 @@ class _SummaryPageState extends State<SummaryPage> {
                 Expanded(
                   flex: 3,
                   child: Container(
-                    // 使用PDF名称和时间戳的组合Key
-                    key: ValueKey('pdf-container-${widget.pdfName}-${widget.pdfBytes.hashCode}'),
-                    child: Column(
-                      children: [
-                        // 添加一个头部显示当前PDF信息
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          color: Colors.blue[50],
-                          child: Text(
-                            'Current PDF: ${widget.pdfName} (${widget.pdfBytes.length} bytes)',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        Expanded(
-                          child: pdf_viewer.buildPdfViewer(_viewId, widget.pdfBytes),
-                        ),
-                      ],
-                    ),
+                    // 修改：使用当前的_viewId构建PDF查看器
+                    child: buildPdfViewer(_viewId, widget.pdfBytes),
                   ),
                 ),
                 Expanded(
@@ -331,7 +262,6 @@ class _SummaryPageState extends State<SummaryPage> {
         const SizedBox(height: 16),
         _buildSectionTitle("Reviewer Assessment"),
         TextField(
-          key: ValueKey('comments-${widget.pdfName}'), // 添加Key确保TextField重置
           maxLines: 3,
           onChanged: (val) => comments = val,
           decoration: const InputDecoration(
@@ -372,7 +302,6 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
         ),
         RatingBar.builder(
-          key: ValueKey('rating-${widget.pdfName}'), // 添加Key确保RatingBar重置
           initialRating: stars,
           minRating: 1,
           maxRating: 5,
