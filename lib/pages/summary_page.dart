@@ -399,7 +399,7 @@ class _SummaryPageState extends State<SummaryPage> {
             TextButton(
               onPressed: _clearHistory,
               child: const Text(
-                "Clearr History",
+                "Clear History",
                 style: TextStyle(color: Colors.red),
               ),
             ),
