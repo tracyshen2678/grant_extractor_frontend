@@ -14,28 +14,28 @@ final Map<String, String> _urlReferences = <String, String>{};
 
 // 在 Web 平台，我们注册一个 IFrame。
 void registerPlatformView(String viewId, Uint8List pdfBytes) {
-  // 如果已经注册过这个viewId，先清理
-  if (_registeredViewIds.contains(viewId)) {
-    print('ViewId $viewId already registered, skipping...');
-    return;
-  }
-
+  print('Attempting to register viewId: $viewId');
+  
+  // 总是先清理可能存在的旧视图
+  unregisterPlatformView(viewId);
+  
   try {
     // MODIFIED: 使用 ui_web.platformViewRegistry
-    ui_web.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
+    ui_web.platformViewRegistry.registerViewFactory(viewId, (int factoryViewId) {
       final blob = html.Blob([pdfBytes], 'application/pdf');
       final url = html.Url.createObjectUrlFromBlob(blob);
       
       // 存储URL引用以便后续清理
-      _urlReferences[viewId.toString()] = url;
+      _urlReferences[viewId] = url;
       
       final iframe = html.IFrameElement()
         ..src = url
         ..style.width = '100%'
         ..style.height = '100%'
-        ..style.border = 'none';
+        ..style.border = 'none'
+        ..style.display = 'block'; // 确保显示
       
-      print('Registered PDF viewer for viewId: $viewId with URL: $url');
+      print('Created iframe for viewId: $viewId with URL: $url');
       return iframe;
     });
     
@@ -43,6 +43,12 @@ void registerPlatformView(String viewId, Uint8List pdfBytes) {
     print('Successfully registered viewId: $viewId');
   } catch (e) {
     print('Error registering viewId $viewId: $e');
+    // 如果注册失败，可能是因为viewId已存在，尝试使用新的ID
+    if (e.toString().contains('already registered')) {
+      final newViewId = '${viewId}_retry_${DateTime.now().millisecondsSinceEpoch}';
+      print('Retrying with new viewId: $newViewId');
+      registerPlatformView(newViewId, pdfBytes);
+    }
   }
 }
 
@@ -50,22 +56,29 @@ void registerPlatformView(String viewId, Uint8List pdfBytes) {
 void unregisterPlatformView(String viewId) {
   if (_registeredViewIds.contains(viewId)) {
     _registeredViewIds.remove(viewId);
-    
-    // 清理URL引用
-    final url = _urlReferences.remove(viewId);
-    if (url != null) {
+    print('Unregistered viewId: $viewId');
+  }
+  
+  // 清理URL引用
+  final url = _urlReferences.remove(viewId);
+  if (url != null) {
+    try {
       html.Url.revokeObjectUrl(url);
       print('Cleaned up URL for viewId: $viewId');
+    } catch (e) {
+      print('Error cleaning up URL: $e');
     }
-    
-    print('Unregistered viewId: $viewId');
   }
 }
 
 // 清理所有注册的视图
 void cleanupAllPdfViewers() {
   for (final url in _urlReferences.values) {
-    html.Url.revokeObjectUrl(url);
+    try {
+      html.Url.revokeObjectUrl(url);
+    } catch (e) {
+      print('Error cleaning up URL: $e');
+    }
   }
   _urlReferences.clear();
   _registeredViewIds.clear();
@@ -75,5 +88,15 @@ void cleanupAllPdfViewers() {
 // 在 Web 平台，我们使用 HtmlElementView 来显示这个 IFrame。
 Widget buildPdfViewer(String viewId, Uint8List pdfBytes) {
   print('Building PDF viewer with viewId: $viewId');
-  return HtmlElementView(viewType: viewId);
+  
+  // 检查viewId是否已注册
+  if (!_registeredViewIds.contains(viewId)) {
+    print('ViewId $viewId not registered, registering now...');
+    registerPlatformView(viewId, pdfBytes);
+  }
+  
+  return HtmlElementView(
+    viewType: viewId,
+    key: ValueKey('html-view-$viewId'),
+  );
 }
