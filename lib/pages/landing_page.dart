@@ -52,7 +52,8 @@ class _LandingPageState extends State<LandingPage> {
       final response = await http.post(
         Uri.parse("https://grant-extractor-api.onrender.com/api/v1/auth/token"),
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
-        body: {"username": username, "password": password},
+        body:
+            "username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}",
       );
 
       if (response.statusCode == 200) {
@@ -110,21 +111,12 @@ class _LandingPageState extends State<LandingPage> {
       final String fileName = pickedFile.name;
 
       if (fileBytes != null && context.mounted) {
-        print('=== PDF Selection Info ===');
-        print('Selected file: $fileName');
-        print('File size: ${fileBytes.length} bytes');
-        print('Navigating to SummaryPage...');
-        
-        // 使用pushReplacement确保替换而不是堆叠页面
-        // 并且使用唯一的key确保每次都创建新的SummaryPage实例
-        Navigator.pushReplacement(
+        Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => SummaryPage(
-              key: ValueKey('summary-${fileName}-${DateTime.now().millisecondsSinceEpoch}'),
-              pdfBytes: fileBytes, 
-              pdfName: fileName,
-            ),
+            builder:
+                (context) =>
+                    SummaryPage(pdfBytes: fileBytes, pdfName: fileName),
           ),
         );
       }
