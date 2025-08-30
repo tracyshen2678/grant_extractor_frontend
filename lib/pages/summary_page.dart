@@ -43,19 +43,35 @@ class _SummaryPageState extends State<SummaryPage> {
   @override
   void initState() {
     super.initState();
-    _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
-    registerPlatformView(_viewId, widget.pdfBytes);
+    _initializePdfViewer();
     _uploadAndParsePDF();
   }
 
   @override
   void didUpdateWidget(covariant SummaryPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.pdfBytes != widget.pdfBytes) {
-      _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}';
-      registerPlatformView(_viewId, widget.pdfBytes);
-      setState(() {});
+    // 检查PDF是否发生变化
+    if (oldWidget.pdfBytes != widget.pdfBytes || oldWidget.pdfName != widget.pdfName) {
+      print('PDF changed, updating viewer...');
+      _initializePdfViewer();
+      // 重置状态
+      setState(() {
+        synopsis = '';
+        keywords = [];
+        extractedData = {};
+        score = 50;
+        stars = 3;
+        comments = '';
+        _isLoading = true;
+      });
+      // 重新解析新的PDF
+      _uploadAndParsePDF();
     }
+  }
+
+  void _initializePdfViewer() {
+    _viewId = 'pdf-viewer-${DateTime.now().millisecondsSinceEpoch}-${widget.pdfName.hashCode}';
+    registerPlatformView(_viewId, widget.pdfBytes);
   }
 
   String _getBaseUrl() {
@@ -108,11 +124,13 @@ class _SummaryPageState extends State<SummaryPage> {
       if (response.statusCode == 200) {
         final resBody = await response.stream.bytesToString();
         final jsonData = jsonDecode(resBody);
-        setState(() {
-          synopsis = jsonData['synopsis'] ?? '';
-          keywords = List<String>.from(jsonData['keywords'] ?? []);
-          extractedData = jsonData['extracted_data'] ?? {};
-        });
+        if (mounted) {
+          setState(() {
+            synopsis = jsonData['synopsis'] ?? '';
+            keywords = List<String>.from(jsonData['keywords'] ?? []);
+            extractedData = jsonData['extracted_data'] ?? {};
+          });
+        }
       } else {
         final errorBody = await response.stream.bytesToString();
         _showError('解析失败: ${response.statusCode}\n$errorBody');
@@ -135,7 +153,7 @@ class _SummaryPageState extends State<SummaryPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
-        title: const Text("Application Summary Preview"),
+        title: Text("Application Summary - ${widget.pdfName}"), // 显示当前PDF名称
       ),
       body: Row(
         children: [
@@ -166,7 +184,8 @@ class _SummaryPageState extends State<SummaryPage> {
                 Expanded(
                   flex: 3,
                   child: Container(
-                    // 调用来自条件导入的函数来构建 Widget
+                    // 使用Key强制Widget重建
+                    key: ValueKey(_viewId),
                     child: buildPdfViewer(_viewId, widget.pdfBytes),
                   ),
                 ),
@@ -250,6 +269,7 @@ class _SummaryPageState extends State<SummaryPage> {
         const SizedBox(height: 16),
         _buildSectionTitle("Reviewer Assessment"),
         TextField(
+          key: ValueKey('comments-${widget.pdfName}'), // 添加Key确保TextField重置
           maxLines: 3,
           onChanged: (val) => comments = val,
           decoration: const InputDecoration(
@@ -290,6 +310,7 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
         ),
         RatingBar.builder(
+          key: ValueKey('rating-${widget.pdfName}'), // 添加Key确保RatingBar重置
           initialRating: stars,
           minRating: 1,
           maxRating: 5,
